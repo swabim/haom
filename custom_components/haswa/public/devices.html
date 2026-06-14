@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWA8 Devices</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="header">
+        <div>
+          <div class="logo small">SWA8</div>
+          <h1>My Devices</h1>
+        </div>
+        <button id="logoutBtn" class="btn-outline">Sign Out</button>
+      </div>
+      <p class="subtitle" id="welcomeMsg">Loading...</p>
+      <div id="deviceList" class="device-list">
+        <div class="loading">Loading devices...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('swa8_token');
+    const userJson = localStorage.getItem('swa8_user');
+
+    if (!token || !userJson) {
+      window.location.href = '/login.html';
+    }
+
+    const user = JSON.parse(userJson);
+    const welcomeMsg = document.getElementById('welcomeMsg');
+    const deviceList = document.getElementById('deviceList');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    welcomeMsg.textContent = `Welcome, ${user.name || user.email}`;
+
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('swa8_token');
+      localStorage.removeItem('swa8_user');
+      window.location.href = '/login.html';
+    });
+
+    async function fetchDevices() {
+      try {
+        const res = await fetch(`/api/proxy/devices?userId=${user.id}&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            localStorage.removeItem('swa8_token');
+            localStorage.removeItem('swa8_user');
+            window.location.href = '/login.html';
+            return;
+          }
+          throw new Error(data.error || 'Failed to load devices');
+        }
+
+        renderDevices(data.devices || []);
+      } catch (err) {
+        deviceList.innerHTML = `<p class="error">${err.message}</p>`;
+      }
+    }
+
+    function renderDevices(devices) {
+      if (devices.length === 0) {
+        deviceList.innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">📡</div>
+            <h3>No devices found</h3>
+            <p>No devices are linked to your account yet. Scan a QR code on your SWA8 mirror to pair a device.</p>
+          </div>`;
+        return;
+      }
+
+      deviceList.innerHTML = devices.map(d => `
+        <div class="device-card">
+          <div class="device-icon ${d.linked ? 'linked' : 'unlinked'}">
+            ${d.linked ? '🖥️' : '📡'}
+          </div>
+          <div class="device-info">
+            <div class="device-name">${d.name}</div>
+            <div class="device-key">${d.deviceKey}</div>
+            <div class="device-status ${d.linked ? 'status-linked' : 'status-unlinked'}">
+              ${d.linked ? 'Linked' : 'Not paired'}
+            </div>
+          </div>
+          ${d.config && d.config.modules ? `
+          <div class="device-modules">
+            <small>${d.config.modules.filter(m => m.enabled).length} modules active</small>
+          </div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    fetchDevices();
+  </script>
+</body>
+</html>
